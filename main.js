@@ -18,19 +18,17 @@ let camera = null;
 let stream = null;
 let running = false;
 
-let eyeColor = 'rgba(42,168,255,0.6)';
+let eyeColor = 'rgba(42,168,255,1)';
+
 let smoothLandmarks = null;
-const SMOOTH = 0.6;
+const SMOOTH = 0.3;
 
 // ===============================
-// LANDMARKS MEDIAPIPE
+// LANDMARKS
 // ===============================
-
-// IRIS
 const LEFT_IRIS = [474, 475, 476, 477];
 const RIGHT_IRIS = [469, 470, 471, 472];
 
-// CONTORNO COMPLETO DE PÁRPADOS
 const LEFT_EYE = [
   33, 7, 163, 144, 145, 153,
   154, 155, 133, 173,
@@ -44,16 +42,14 @@ const RIGHT_EYE = [
 ];
 
 // ===============================
-// RESET VIDEO (ANTI BUG)
+// RESET VIDEO
 // ===============================
 function resetVideoElement() {
   const oldVideo = document.getElementById('video');
   const newVideo = oldVideo.cloneNode(true);
-
   newVideo.srcObject = null;
   newVideo.removeAttribute('src');
   newVideo.load();
-
   oldVideo.parentNode.replaceChild(newVideo, oldVideo);
   return newVideo;
 }
@@ -90,7 +86,6 @@ closeBtn.addEventListener('click', closeCamera);
 
 function closeCamera() {
   running = false;
-
   popup.classList.remove('active');
   openBtn.style.display = 'block';
   loader.style.display = 'flex';
@@ -117,8 +112,8 @@ function closeCamera() {
 // ===============================
 function initFaceMesh() {
   faceMesh = new FaceMesh({
-    locateFile: file =>
-      `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    locateFile: f =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
   });
 
   faceMesh.setOptions({
@@ -145,6 +140,8 @@ function initFaceMesh() {
 // RESULTS
 // ===============================
 function onResults(results) {
+   resizeCanvas(); // 👈 FIX FUNDAMENTAL
+  ctx.globalCompositeOperation = 'source-over'; // 👈 FIX CRÍTICO
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!results.multiFaceLandmarks?.length) {
@@ -168,71 +165,82 @@ function onResults(results) {
   drawEyes(smoothLandmarks);
 }
 
+
 // ===============================
-// DRAW EYES
+// DRAW
 // ===============================
-function drawEyes(landmarks) {
-  // DEBUG CONTORNOS
-  drawContour(landmarks, LEFT_EYE, '#00ff88');
-  drawContour(landmarks, RIGHT_EYE, '#00ff88');
+function drawEyes(lm) {
 
-  drawContour(landmarks, LEFT_IRIS, '#ff0044');
-  drawContour(landmarks, RIGHT_IRIS, '#ff0044');
+  ctx.fillStyle = 'red';
+ctx.fillRect(10, 10, 20, 20);
 
-  drawPoints(landmarks, LEFT_EYE, '#00ff88');
-  drawPoints(landmarks, RIGHT_EYE, '#00ff88');
-  drawPoints(landmarks, LEFT_IRIS, '#ff0044');
-  drawPoints(landmarks, RIGHT_IRIS, '#ff0044');
+  // DEBUG (opcional)
+  drawContour(lm, LEFT_EYE, '#00ff88');
+  drawContour(lm, RIGHT_EYE, '#00ff88');
 
-  // FILTRO
-  drawIrisClipped(landmarks, LEFT_IRIS, LEFT_EYE);
-  drawIrisClipped(landmarks, RIGHT_IRIS, RIGHT_EYE);
+  drawContour(lm, LEFT_IRIS, '#ff0044');
+drawContour(lm, RIGHT_IRIS, '#ff0044');
+
+  // IRIS DINÁMICO
+  drawDynamicIris(lm, LEFT_IRIS, LEFT_EYE, eyeColor);
+  drawDynamicIris(lm, RIGHT_IRIS, RIGHT_EYE, eyeColor);
 }
 
-function drawIrisClipped(landmarks, irisIdx, eyeIdx) {
+
+// ===============================
+// IRIS RELLENO + RECORTE CORRECTO
+// ===============================
+function drawDynamicIris(lm, irisIdx, eyeIdx, color) {
   ctx.save();
 
-  // CLIP POR PÁRPADOS
+  // === CLIP DEL OJO ===
   ctx.beginPath();
-  eyeIdx.forEach((i, idx) => {
-    const x = landmarks[i].x * canvas.width;
-    const y = landmarks[i].y * canvas.height;
-    idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  eyeIdx.forEach((i, n) => {
+    const x = lm[i].x * canvas.width;
+    const y = lm[i].y * canvas.height;
+    n === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.closePath();
-  ctx.clip();
+  ctx.clip('evenodd'); // 🔥 FIX REAL
 
-  // CENTRO IRIS
-  const pts = irisIdx.map(i => ({
-    x: landmarks[i].x * canvas.width,
-    y: landmarks[i].y * canvas.height
-  }));
 
-  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+  // === CENTRO DEL IRIS ===
+  let cx = 0, cy = 0;
+  irisIdx.forEach(i => {
+    cx += lm[i].x * canvas.width;
+    cy += lm[i].y * canvas.height;
+  });
+  cx /= irisIdx.length;
+  cy /= irisIdx.length;
 
-  const r =
-    Math.hypot(pts[0].x - pts[2].x, pts[0].y - pts[2].y) * 0.55;
+  // === RADIO DINÁMICO (FIX CLAVE) ===
+  let r = 0;
+  irisIdx.forEach(i => {
+    const x = lm[i].x * canvas.width;
+    const y = lm[i].y * canvas.height;
+    r += Math.hypot(x - cx, y - cy);
+  });
 
-  ctx.globalCompositeOperation = 'color';
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = eyeColor;
+  r = (r / irisIdx.length) * 1.15;
+  r = Math.max(r, canvas.width * 0.015); // 👈 FIX REAL
 
+  // === DIBUJO ===
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
   ctx.fill();
 
   ctx.restore();
 }
 
 // ===============================
-// DEBUG HELPERS
+// DEBUG
 // ===============================
-function drawContour(landmarks, idxs, color) {
+function drawContour(lm, idxs, color) {
   ctx.beginPath();
   idxs.forEach((i, n) => {
-    const x = landmarks[i].x * canvas.width;
-    const y = landmarks[i].y * canvas.height;
+    const x = lm[i].x * canvas.width;
+    const y = lm[i].y * canvas.height;
     n === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.closePath();
@@ -241,31 +249,19 @@ function drawContour(landmarks, idxs, color) {
   ctx.stroke();
 }
 
-function drawPoints(landmarks, idxs, color) {
-  idxs.forEach(i => {
-    const x = landmarks[i].x * canvas.width;
-    const y = landmarks[i].y * canvas.height;
-    ctx.beginPath();
-    ctx.arc(x, y, 2, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-  });
-}
-
-// ===============================
-// COLORS UI
-// ===============================
-document.querySelectorAll('.color').forEach(el => {
-  el.addEventListener('click', () => {
-    eyeColor = `rgba(${el.dataset.color},0.6)`;
-  });
-});
-
 // ===============================
 // RESIZE
 // ===============================
 function resizeCanvas() {
-  canvas.width = video.videoWidth || 640;
-  canvas.height = video.videoHeight || 480;
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+
+  if (!w || !h) return;
+
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
 }
+
 window.addEventListener('resize', resizeCanvas);
