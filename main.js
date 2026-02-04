@@ -24,7 +24,7 @@ const loader = document.getElementById('loader');
 let faceMesh = null;
 let camera = null;
 let running = false;
-let selectedIrisColor = 'rgb(49, 30, 0)';
+let selectedIrisColor = 'rgba(104, 42, 0, 0.64)';
 
 
 // ===============================
@@ -113,24 +113,32 @@ function onResults(results) {
   resizeCanvas();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // 🔁 espejo GLOBAL (video + filtro)
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+
   if (!results.multiFaceLandmarks?.length) {
     loader.style.display = 'flex';
+    ctx.restore();
     return;
   }
 
   loader.style.display = 'none';
   const lm = results.multiFaceLandmarks[0];
 
-drawIrisClipped(lm, LEFT_IRIS, LEFT_EYE, selectedIrisColor, 'L');
-drawIrisClipped(lm, RIGHT_IRIS, RIGHT_EYE, selectedIrisColor, 'R');
+drawIrisClipped(lm, RIGHT_IRIS, RIGHT_EYE, selectedIrisColor, 'L');
+drawIrisClipped(lm, LEFT_IRIS, LEFT_EYE, selectedIrisColor, 'R');
 
-
+  ctx.restore();
 }
+
+
 
 let prevIrisL = null;
 let prevIrisR = null;
 
-function smoothIris(current, prev, factor = 0.5) {
+function smoothIris(current, prev, factor = 0.1) {
   if (!prev) return current;
   return {
     cx: prev.cx * factor + current.cx * (1 - factor),
@@ -149,10 +157,10 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
 
   // ===== SMOOTH =====
   if (side === 'L') {
-    iris = smoothIris(iris, prevIrisL, 0.1);
+    iris = smoothIris(iris, prevIrisL, 0.0);
     prevIrisL = iris;
   } else {
-    iris = smoothIris(iris, prevIrisR, 0.1);
+    iris = smoothIris(iris, prevIrisR, 0.0);
     prevIrisR = iris;
   }
 
@@ -170,10 +178,10 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
   ctx.clip();
 
   // ===== DIBUJAR TEXTURA DEL IRIS =====
-  const size = iris.r * 2.5;
+  const size = iris.r * 2.7;
 
   ctx.beginPath();
-  ctx.arc(iris.cx, iris.cy, iris.r*2, 0, Math.PI * 2);
+  ctx.arc(iris.cx, iris.cy, iris.r*3, 0, Math.PI * 2);
   ctx.clip();
 
   ctx.drawImage(
@@ -198,7 +206,7 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
 
   // ===== COLOR OPCIONAL ENCIMA =====
   ctx.globalCompositeOperation = 'source-atop';
-  ctx.globalAlpha = 0.5;
+  ctx.globalAlpha = 0.9;
 
   ctx.beginPath();
   ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
