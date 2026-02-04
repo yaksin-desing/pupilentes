@@ -1,3 +1,12 @@
+const irisTexture = new Image();
+irisTexture.src = 'pupila.png'; // o .svg
+let irisTextureReady = false;
+
+irisTexture.onload = () => {
+  irisTextureReady = true;
+};
+
+
 // ===============================
 // ELEMENTOS DOM
 // ===============================
@@ -78,8 +87,8 @@ function initFaceMesh() {
   faceMesh.setOptions({
     maxNumFaces: 1,
     refineLandmarks: true,
-    minDetectionConfidence: 0.6,
-    minTrackingConfidence: 0.6
+    minDetectionConfidence: 0,
+    minTrackingConfidence: 0,
   });
 
   faceMesh.onResults(onResults);
@@ -114,32 +123,61 @@ function onResults(results) {
   drawIrisClipped(lm, RIGHT_IRIS, RIGHT_EYE, 'rgba(0,200,255,0.7)');
 }
 
+let prevIrisL = null;
+let prevIrisR = null;
+
+function smoothIris(current, prev, factor = 0.5) {
+  if (!prev) return current;
+  return {
+    cx: prev.cx * factor + current.cx * (1 - factor),
+    cy: prev.cy * factor + current.cy * (1 - factor),
+    r:  prev.r  * factor + current.r  * (1 - factor)
+  };
+}
+
 // ===============================
 // IRIS CIRCULAR + CLIP CON PÁRPADOS
 // ===============================
 function drawIrisClipped(lm, irisIdx, eyeIdx, color) {
-  const iris = getIrisData(lm, irisIdx);
+  let iris = getIrisData(lm, irisIdx);
 
-  ctx.save();
+  iris = smoothIris(iris, prevIrisL, 0);
 
-  // Crear máscara del ojo
-  ctx.beginPath();
-  eyeIdx.forEach((i, idx) => {
-    const p = lm[i];
-    const x = p.x * canvas.width;
-    const y = p.y * canvas.height;
-    idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  ctx.closePath();
-  ctx.clip();
 
-  // Dibujar iris
-  ctx.beginPath();
-  ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
 
-  ctx.restore();
+if (!irisTextureReady) return;
+
+ctx.save();
+
+// ===== CLIP DEL OJO (párpados) =====
+ctx.beginPath();
+eyeIdx.forEach((i, idx) => {
+  const p = lm[i];
+  const x = p.x * canvas.width;
+  const y = p.y * canvas.height;
+  idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+});
+ctx.closePath();
+ctx.clip();
+
+// ===== CLIP DEL IRIS (círculo) =====
+ctx.beginPath();
+ctx.arc(iris.cx, iris.cy, iris.r * 1.5, 0, Math.PI * 2);
+ctx.clip();
+
+// ===== DIBUJAR TEXTURA =====
+const size = iris.r * 2;
+
+ctx.drawImage(
+  irisTexture,
+  iris.cx - iris.r,
+  iris.cy - iris.r,
+  size,
+  size
+);
+
+ctx.restore();
+
 }
 
 // ===============================
@@ -168,6 +206,9 @@ function getIrisData(lm, idxs) {
 
   return { cx, cy, r };
 }
+
+
+
 
 // ===============================
 // RESIZE
