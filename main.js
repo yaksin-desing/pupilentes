@@ -149,10 +149,10 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
 
   // ===== SMOOTH =====
   if (side === 'L') {
-    iris = smoothIris(iris, prevIrisL, 0.15);
+    iris = smoothIris(iris, prevIrisL, 0.1);
     prevIrisL = iris;
   } else {
-    iris = smoothIris(iris, prevIrisR, 0.15);
+    iris = smoothIris(iris, prevIrisR, 0.1);
     prevIrisR = iris;
   }
 
@@ -186,14 +186,13 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
 
   // ===== COLOR OPCIONAL ENCIMA =====
   ctx.globalCompositeOperation = 'source-atop';
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.7;
 
   ctx.beginPath();
   ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
 
-  ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.restore();
