@@ -24,6 +24,8 @@ const loader = document.getElementById('loader');
 let faceMesh = null;
 let camera = null;
 let running = false;
+let selectedIrisColor = 'rgb(49, 30, 0)';
+
 
 // ===============================
 // LANDMARKS
@@ -119,8 +121,10 @@ function onResults(results) {
   loader.style.display = 'none';
   const lm = results.multiFaceLandmarks[0];
 
-  drawIrisClipped(lm, LEFT_IRIS, LEFT_EYE, 'rgba(0,200,255,0.7)');
-  drawIrisClipped(lm, RIGHT_IRIS, RIGHT_EYE, 'rgba(0,200,255,0.7)');
+drawIrisClipped(lm, LEFT_IRIS, LEFT_EYE, selectedIrisColor, 'L');
+drawIrisClipped(lm, RIGHT_IRIS, RIGHT_EYE, selectedIrisColor, 'R');
+
+
 }
 
 let prevIrisL = null;
@@ -138,46 +142,61 @@ function smoothIris(current, prev, factor = 0.5) {
 // ===============================
 // IRIS CIRCULAR + CLIP CON PÁRPADOS
 // ===============================
-function drawIrisClipped(lm, irisIdx, eyeIdx, color) {
+function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
+  if (!irisTextureReady) return;
+
   let iris = getIrisData(lm, irisIdx);
 
-  iris = smoothIris(iris, prevIrisL, 0);
+  // ===== SMOOTH =====
+  if (side === 'L') {
+    iris = smoothIris(iris, prevIrisL, 0.15);
+    prevIrisL = iris;
+  } else {
+    iris = smoothIris(iris, prevIrisR, 0.15);
+    prevIrisR = iris;
+  }
 
+  ctx.save();
 
+  // ===== CLIP DEL OJO (PÁRPADOS) =====
+  ctx.beginPath();
+  eyeIdx.forEach((i, idx) => {
+    const p = lm[i];
+    const x = p.x * canvas.width;
+    const y = p.y * canvas.height;
+    idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.clip();
 
-if (!irisTextureReady) return;
+  // ===== DIBUJAR TEXTURA DEL IRIS =====
+  const size = iris.r * 2.2;
 
-ctx.save();
+  ctx.beginPath();
+  ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
+  ctx.clip();
 
-// ===== CLIP DEL OJO (párpados) =====
-ctx.beginPath();
-eyeIdx.forEach((i, idx) => {
-  const p = lm[i];
-  const x = p.x * canvas.width;
-  const y = p.y * canvas.height;
-  idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-});
-ctx.closePath();
-ctx.clip();
+  ctx.drawImage(
+    irisTexture,
+    iris.cx - size / 2,
+    iris.cy - size / 2,
+    size,
+    size
+  );
 
-// ===== CLIP DEL IRIS (círculo) =====
-ctx.beginPath();
-ctx.arc(iris.cx, iris.cy, iris.r * 1.5, 0, Math.PI * 2);
-ctx.clip();
+  // ===== COLOR OPCIONAL ENCIMA =====
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.globalAlpha = 0.35;
 
-// ===== DIBUJAR TEXTURA =====
-const size = iris.r * 2;
+  ctx.beginPath();
+  ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
 
-ctx.drawImage(
-  irisTexture,
-  iris.cx - iris.r,
-  iris.cy - iris.r,
-  size,
-  size
-);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
 
-ctx.restore();
-
+  ctx.restore();
 }
 
 // ===============================
@@ -220,3 +239,12 @@ function resizeCanvas() {
 }
 
 window.addEventListener('resize', resizeCanvas);
+
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.color').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedIrisColor = btn.dataset.color;
+    });
+  });
+});
