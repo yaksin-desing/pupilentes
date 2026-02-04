@@ -170,10 +170,10 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
   ctx.clip();
 
   // ===== DIBUJAR TEXTURA DEL IRIS =====
-  const size = iris.r * 2.2;
+  const size = iris.r * 2.5;
 
   ctx.beginPath();
-  ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
+  ctx.arc(iris.cx, iris.cy, iris.r*2, 0, Math.PI * 2);
   ctx.clip();
 
   ctx.drawImage(
@@ -183,10 +183,22 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
     size,
     size
   );
+  
+  // ===== BRILLO DE PUPILA =====
+  ctx.beginPath();
+  ctx.arc(
+  iris.cx - iris.r * 0.2,
+  iris.cy - iris.r * 0.2,
+  iris.r * 0.05,
+  0,
+  Math.PI * 2
+);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fill();
 
   // ===== COLOR OPCIONAL ENCIMA =====
   ctx.globalCompositeOperation = 'source-atop';
-  ctx.globalAlpha = 0.7;
+  ctx.globalAlpha = 0.5;
 
   ctx.beginPath();
   ctx.arc(iris.cx, iris.cy, iris.r, 0, Math.PI * 2);
@@ -196,7 +208,10 @@ function drawIrisClipped(lm, irisIdx, eyeIdx, color, side = 'L') {
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.restore();
+  
 }
+
+
 
 // ===============================
 // CÁLCULO DE IRIS
